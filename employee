@@ -1,0 +1,272 @@
+# Employee-API POC
+
+## Table of contents
+- [Introduction](#introduction)
+- [Pre Requisites](#pre-requisites)
+- [System Requirements](#system-requirements)
+- [Important Ports](#important-ports)
+- [Dependencies](Dependencies)
+- [Step by step installation](#step-by-step-installation)
+- [Changes needed to be done in cloned files](#changes-needed-to-be-done-in-cloned-files)
+- [Create keyspace inside ScyllaDB](#create-keyspace-inside-scylladb)
+- [Health check](#health-check)
+- [Insert data](#insert-data )
+- [Service file](#run-api-in-the-background-with-service-file)
+- [Endpoints Information](#endpoints-information)
+- [Contact Information](#contact-information)
+- [Reference Links](#reference-links)
+  
+## Introduction
+
+Welcome to the Employee-API POC. Employee REST API is a golang based microservice which is responsible for all the employee related transactions in the OT-Microservices. This application is completely platform independent and can be run on any kind of platform.
+
+## Metadata
+
+| Author    | Created on   | Version      | Last updated by | Last edited on |
+|-----------|--------------|--------------:|:-----------------:|:----------------|
+| Akshit    | 05-06-2024  |V1    |    Akshit           |  05-06-2024  |
+
+## Pre Requisites
+
+The application doesn't have any specific pre-requisites except the database connectivity. Additionally, we can add Redis as cache system but it's not part of the mandatory setup and Migrate to setup table in ScyllaDB.
+
+- [ScyllaDB](https://www.liquibase.com/download)
+- [Migrate](https://github.com/golang-migrate/migrate)
+- [Redis](https://redis.io/docs/latest/operate/oss_and_stack/install/install-redis/install-redis-on-linux/)
+
+## System Requirements
+
+| System requirement | Minimum Requirement  |
+|:-----------------------:|:--------------------:|
+| Operating System        | Ubuntu 22.04         |
+| Disk space            | 20 GB    |
+| RAM                 | 4 GB|
+| Instance Type        | t2.medium|
+
+## Important Ports
+
+| Port No | Description | Traffic | 
+|:----:|:----:| :----: |
+|8080 | Employee API port | Inbound |
+|22   | SSH | Inbound | 
+|9042 | ScyllaDB | Inbound  |
+|6379 | Redis | Inbound |
+
+## Dependencies
+### Buildtime Dependency
+| Buildtime  Dependency  | version |
+|:-----------------------:|:--------------------:|
+| Golang | 1.20 |
+| Migrate | 4.17 |
+
+### Runtime Dependency
+| Runtime Dependency | version |
+|:-----------------------:|:--------------------:|
+| ScyllaDB | 5.4.6-0.20240418.10f137e367e3 |
+| Redis | 5.0.7 |
+
+ 
+## Step by step installation
+### Installing Pre-Requisites
+#### Steps to install ScyllaDB
+
+- **Install a repo file and add the ScyllaDB APT repository to your system**
+  ```sh
+   sudo mkdir -p /etc/apt/keyrings
+   sudo gpg --homedir /tmp --no-default-keyring --keyring /etc/apt/keyrings/scylladb.gpg --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys d0a112e067426ab2
+   sudo wget -O /etc/apt/sources.list.d/scylla.list http://downloads.scylladb.com/deb/debian/scylla-5.4.list
+  ```
+- **Install ScyllaDB packages**
+  ```sh
+     sudo apt-get update
+     sudo apt-get install -y scylla
+  ```
+- **Set Java 11**
+  ```sh
+     sudo apt-get update
+     sudo apt-get install -y openjdk-11-jre-headless
+     sudo update-java-alternatives --jre-headless -s java-1.11.0-openjdk-amd64
+  ```
+ - **Run ScyllaDB**
+    ```sh
+       sudo scylla_setup
+    ```
+   - The script invokes a set of [scripts](https://opensource.docs.scylladb.com/stable/getting-started/system-configuration.html#system-configuration-scripts) to configure several operating system settings; for example, it sets RAID0 
+    and XFS filesystem.
+
+   - The script runs a short (up to a few minutes) benchmark on your storage and generates the /etc/scylla.d/io.conf 
+    configuration file. When the file is ready, you can start ScyllaDB. ScyllaDB will not run without XFS or io.conf 
+    file.
+
+   - You can bypass this check by running ScyllaDB in [developer mode](https://opensource.docs.scylladb.com/stable/getting-started/installation-common/dev-mod.html). We recommend against enabling developer mode in 
+    production environments to ensure ScyllaDB’s maximum performance.
+
+![image](https://github.com/mygurkulam-p9/documentation/assets/160398005/35a1c111-beb1-4af9-ac9e-c2dae68aabdd)
+Just keep doing Yes
+
+
+- **Run ScyllaDB as a service (if not already running)**
+    ```sh
+    sudo systemctl start scylla-server
+    ```
+- **Enable the Scylla server to start at boot**
+    ```sh
+    sudo systemctl enable scylla-server
+    ```
+     
+#### Steps to install Migrate
+    curl -s https://packagecloud.io/install/repositories/golang-migrate/migrate/script.deb.sh | sudo bash
+    sudo apt-get update
+    sudo apt-get install migrate
+    
+#### Steps to install Redis
+    sudo apt install redis-server
+    
+### Additional command that we can install (if not already present)
+#### Install make
+     sudo apt install make 
+#### Install JQ
+     sudo apt install jq
+     
+#### Install Golang
+- **To download the Go programming language's version 1.21.6 binary distribution** 
+     ```sh
+     curl -OL https://golang.org/dl/go1.21.6.linux-amd64.tar.gz
+     ```
+- **To verify the integrity of the file you downloaded**
+     ```sh
+     sha256sum go1.21.6.linux-amd64.tar.gz
+     ```
+- **To extract the Go programming language binary distribution into the /usr/local directory**
+     ```sh
+     sudo tar -C /usr/local -xvf go1.21.6.linux-amd64.tar.gz
+     ```
+ - **To configure the user's environment upon login**
+     ```sh
+     sudo vim ~/.profile
+     ```
+ - **Add the following information to the end of your file**
+     ```sh
+      export PATH=$PATH:/usr/local/go/bin
+     ```
+     ![image](https://github.com/mygurkulam-p9/documentation/assets/160398005/8afa3b9d-dd65-401b-bb61-af815205bf3e)
+
+- **Apply the changes**
+     ```sh
+     source ~/.profile
+     ```
+     ![image](https://github.com/mygurkulam-p9/documentation/assets/160398005/758bd231-a03b-4f1c-af61-1f9ae252a1d0)
+
+## Changes needed to be done in cloned files
+#### Changes to be made in config.yaml
+   1. Edit Host IP add Localhost IP
+   2. Edit password for redis and add this ""
+#### Changes to be made in migration.json
+  Edit IP add Localhost IP
+    
+### Create keyspace inside ScyllaDB
+- **To connect with Cassandra database instance**
+    ```sh
+    cqlsh
+    ```
+![image](https://github.com/mygurkulam-p9/documentation/assets/160398005/8b93cd74-2a0d-4a25-b0a6-1d6a2a0ac13d)
+
+- **creates a keyspace named employee_db**
+    ```sh
+    CREATE KEYSPACE IF NOT EXISTS employee_db
+    WITH replication = {'class': 'SimpleStrategy', 'replication_factor': 1};
+    ```
+### Execute commands mention in make file
+    make run-migrations
+This will excute command mention in make file. Which will automates the process of updating the database schema by applying new changes defined in migration scripts.
+
+![image](https://github.com/mygurkulam-p9/documentation/assets/160398005/fc861db2-0791-46af-9a80-c7be693d5db7)
+
+    make build
+This will excute command mention in make file under build. which compile the Go source code in the current directory and produce an executable file named employee-api.
+
+## *We can run application by executing employee-api script:*
+   ```sh
+   ./employee-api
+   ```
+![image](https://github.com/mygurkulam-p9/documentation/assets/160398005/a83dc039-0594-4887-a37f-c5ef0eb93190)
+
+![image](https://github.com/mygurkulam-p9/documentation/assets/160398005/d7de8e06-378a-4a81-8d6d-1cc0812295a3)
+
+## Health check
+Employee API health check can be done with endpoint `/api/v1/employee/health/detail`. It should show that:
+`"Employee API is up and running","scylla_db":"up","employee_api":"up","redis":"up"`
+
+![image](https://github.com/mygurkulam-p9/documentation/assets/160398005/9028ee98-0656-4b80-b384-b5c69b491ce1)
+
+## Insert data 
+{
+"address":"meerut",
+"department":"Tech",
+"designation":"DevOps Specialist",
+"email":"akshit.kapil.snaatak@mygurukulam.co",
+"id":"99",
+"joining_date":"2024-04-24",
+"name":"akshit kapil",
+"office_location":"Delhi",
+"status":"Current Employee",
+"phone_number":"9999999999"
+}
+
+![image](https://github.com/mygurkulam-p9/documentation/assets/160398005/79d5cef7-0796-4f61-be80-ae98c34e6abd)
+
+
+## Endpoints Information
+
+| Endpoint | Method | Description |
+|----------|--------| ----------- |
+| /metrics | GET    | Application healthcheck and performance metrics are available on this endpoint |
+| /api/v1/employee/health| GET    | Endpoint for providing shallow healthcheck information about application health and readiness |
+| /api/v1/employee/health/detail | GET    | Endpoint for providing detailed health check about dependencies as well like - ScyllaDB and Redis |
+| /api/v1/employee/create | POST   | Data creation endpoint which accepts certain JSON body to add employee information in database |
+| /api/v1/employee/search | GET    | Endpoint for searching data information using the params in the URL |
+| /api/v1/employee/search/all | GET    | Endpoint for searching all information across the system |
+| /api/v1/employee/search/location | GET    | Application endpoint for getting the count and information of location |
+| /api/v1/employee/search/designation | GET    | Application endpoint for getting the count and information of designation |
+| /swagger/index.html | GET    | Swagger endpoint for the application API documentation and their data models |
+
+## Run Api in the background with service file
+* create a service for api
+  
+  ```sh
+  sudo vim /etc/systemd/system/employee.service
+  ```
+  ```sh
+  [Unit]
+  Description=Employee Service
+  After=network.target
+
+  [Service]
+  User=ubuntu
+  Group=ubuntu
+  WorkingDirectory=/home/ubuntu/application/employee-api
+  Environment=GIN_MODE=release
+  ExecStart=/home/ubuntu/application/employee-api/employee-api
+  Restart=always
+  RestartSec=3
+ 
+  [Install]
+  WantedBy=multi-user.target
+  ```
+## Contact Information
+
+| Name| Email Address      |
+|-----|--------------------------|
+| Akshit kapil |akshit.kapil.snaatak@mygurukulam.co | 
+
+## Reference Links
+
+| Links | Description      |
+|-----  |--------------------------|
+| https://github.com/OT-MICROSERVICES/documentation-template/wiki/Application-Template | documentation-template | 
+| https://github.com/OT-MICROSERVICES/employee-api/tree/main?tab=readme-ov-file | Employee api |
+
+<p align="center">
+  <img src="./Screenshot from 2024-06-06 05-58-04.png"
+ height="280" width="280">
+</p>
