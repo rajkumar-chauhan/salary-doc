@@ -1,0 +1,275 @@
+# Salary API Deployment
+
+|      created/updated   | version | Author      | comment  |
+|:-----------------:|:----------:|:------------:|:-----------:|
+| 06-06-2024 | 0.1  | Bhavnesh Baghel | intial doc  |
+| 08-06-2024  | 0.2   | Bhavnesh Baghel |  index updated  | 
+
+
+## Table of Contents
+
+| Index                                                                                                                                                     |
+|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| [Understanding](#understand-the-goal) | 
+| [Pre-requisite](#pre-requisite)                   |
+|  &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[Databases](#Databases) |
+|  &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[Application Backend](#Application-Backend) |
+|  &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[Monitoring](#Monitoring) |
+|  [Architecture](#architecture)         |
+|  [Implementation](#implementation) |
+|  &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[Clone Git Repository](#step-1-clone-git-repo) |
+|  &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[Setup ScyllaDB](#step-2-setup-scylladb-on-system) |
+|  &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[Setup Redis Server](#step-3-setup-redis-server) |
+|  &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[Setup Migrate Tool](#step-4-setup-migrate-tool) |
+|  &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[Setup Salary API](#step-5-setup-salary-api) |
+|  &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[Install Salary API and Test](#step-6-install-salary-api-and-test) |
+|  &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[Migrate Database](#step-7-migrate-our-database-using-migrate-tool) |
+|  &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[Creating Service for Application](#step-8-creating-service-for-application) |
+|  &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[Starting Our Service](#step-9-starting-our-service) |
+|  [Final Output](#final-output)           |
+|  [Other Endpoints](#other-endpoints)      |
+| [Contact Information](#contact-information) |
+|  [Reference Links](#reference-links)     |
+
+## Understand the Goal
+
+Salary API is responsible for storing all the salary-related transactions and records of employees in the OT-Microservices stack. This application must be independent and able to run on multiple operating systems.
+
+
+## Pre-requisite
+
+**Databases:**
+
+- **[ScyllaDB](https://www.scylladb.com/)**: To store salary-related transaction records that remain highly available and highly secure. It must be fault-tolerant. ScyllaDB is chosen for this task.
+- **[Redis](https://redis.io/)**: To achieve low latency for transactions, we use Redis as a cache manager to store the cache response.
+
+**Application Backend:**
+
+- **[Java 17](https://www.java.com/en/)**: We will use Java runtime for our application. Ensure it meets the project requirements and integrates seamlessly with the databases.
+
+**(optional) Monitoring:**
+
+- **[Prometheus](https://prometheus.io/)**:Power your metrics and alerting with the leading
+open-source monitoring solution.
+
+## Architecture
+
+![alt text](image.png)
+
+## Implementation
+
+## Steps
+
+## Step 1. **Clone git repo**
+
+```
+git clone https://github.com/OT-MICROSERVICES/salary-api.git
+```
+
+## Step 2. **Setup ScyllaDB on system**
+
+**1: Install Scylla as a package manager**
+
+```
+curl -sSf get.scylladb.com/server | sudo bash
+sudo scylla_io_setup
+sudo systemctl start scylla-server
+sudo systemctl status scylla-server
+```
+
+![alt text](image-1.png)
+
+**2: Configure user Scylla and space**
+
+Go to `scylla.yaml`
+
+```
+sudo vi /etc/scylla/scylla.yaml
+```
+
+Edit the following entries in `scylla.yaml` for securing:
+
+```yaml
+authenticator: PasswordAuthenticator
+authorizer: CassandraAuthorizer
+```
+
+![alt text](image-2.png)
+
+**3: Save `scylla.yaml` and restart Scylla-server**
+
+```
+sudo systemctl restart scylla-server
+```
+
+**4: Login as superuser (cassandra)**
+
+```
+cqlsh -u cassandra -p cassandra
+```
+
+**5: Create ScyllaDB user for our application and give permission to create keyspaces**
+
+```sql
+CREATE ROLE scylladb WITH PASSWORD = 'password' AND LOGIN = true;
+GRANT CREATE ON ALL KEYSPACES TO scylladb;
+exit
+```
+![alt text](image-3.png)
+
+**6: Login with ScyllaDB user and create a keyspace**
+
+```
+cqlsh -u scylladb -p password
+CREATE KEYSPACE employee_db WITH REPLICATION = {
+    'class' : 'SimpleStrategy',
+    'replication_factor' : 1
+};
+exit
+```
+
+![alt text](image-4.png)
+
+## Step 3. **Setup Redis server**
+
+**1: Install Redis and test**
+
+```
+sudo apt install redis-server
+sudo systemctl start redis-server
+sudo systemctl status redis-server
+redis-cli
+ping
+```
+
+![alt text](image-5.png)
+
+## Step4. **Setup Migrate tool**
+
+**1: Install and check migrate tool**
+
+```
+curl -L https://github.com/golang-migrate/migrate/releases/download/v4.15.2/migrate.linux-amd64.tar.gz -o migrate.tar.gz
+tar -xvzf migrate.tar.gz
+sudo mv migrate /usr/local/bin/
+sudo chmod +x /usr/local/bin/migrate
+migrate --version
+```
+
+![alt text](image-6.png)
+
+## Step5. **Setup Salary API**
+
+**1: Install JDK 17 and Maven**
+
+```
+sudo apt install openjdk-17-jdk
+sudo apt install maven
+```
+
+![alt text](image-7.png)
+
+**2: Edit `application.yml` and `migration.json`**
+
+In `application.yml`:
+
+```yaml
+contact-point: <your server address>
+```
+
+![alt text](image-8.png)
+
+In `migration.json`:
+    
+Change the address with your server address.
+
+![alt text](image-9.png)
+
+## Step6. **Install Salary API and test**
+
+**1: Install API**
+
+```
+mvn clean package -Dmaven.test.skip=true
+```
+![alt text](image-10.png)
+
+**2: Test API**
+
+```
+mvn checkstyle:checkstyle
+mvn test
+```
+![alt text](image-11.png)
+
+![alt text](image-12.png)
+
+## Step6. **Migrate our database using migrate tool**
+
+```
+migrate -source file://migration -database "$(migration.json | jq -r '.database')" up
+```
+
+![alt text](image-13.png)
+
+
+
+## Step7. **Creating Service for Application**
+
+![alt text](image-15.png)
+
+## Step8. **Starting Our Service**
+
+```
+sudo systemctl daemon-reload
+sudo systemctl start salary_api.service
+sudo systemctl status salary_api.service
+```
+![alt text](image-16.png)
+
+
+
+## Final Output
+
+#### Check the health:
+
+#### Open browser and hit the URL:
+
+```
+http://<server>:8080/actuator/health
+```
+
+![alt text](image-14.png)
+
+ #### Run in debug mode on browser:
+
+```
+http://<server>:8080/salary-documentation
+```
+![alt text](image-17.png)
+
+
+## Other Endpoints:
+
+| Endpoint                    | Method | Description                                                         |
+|-----------------------------|--------|---------------------------------------------------------------------|
+| `/api/v1/salary/create/record` | POST   | Data creation endpoint which accepts a JSON body to add salary info  |
+| `/api/v1/salary/search`     | GET    | Endpoint for searching data information using the params in the URL |
+| `/api/v1/salary/search/all` | GET    | Endpoint for searching all information across the system            |
+| `/actuator/prometheus`      | GET    | Application health check and performance metrics                    |
+| `/actuator/health`          | GET    | Endpoint for providing shallow health check information about the application |
+
+
+## Contact Information
+
+| Name| Email Address      |
+|-----|--------------------------|
+| Bhavnesh  |  bhavnesh.baghel.snaatak@mygurukulam.co          | 
+
+
+##  Reference Links
+
+| Links | Description      |
+|-----  |--------------------------|
+| https://opensource.docs.scylladb.com/stable/getting-started/install-scylla/install-on-linux.html |  For scyllaDb  setup  | 
+| https://redis.io/docs/latest/operate/oss_and_stack/install/install-redis/  |  For Redis Setup |
